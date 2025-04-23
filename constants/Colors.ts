@@ -6,21 +6,44 @@
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
+const disabledColorLight = '#687076';
+const disabledColorDark = '#9BA1A6';
+
 export const Colors = {
   light: {
     text: '#11181C',
     background: '#fff',
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: disabledColorLight,
+    tabIconDefault: disabledColorLight,
     tabIconSelected: tintColorLight,
+    disabledText: disabledColorLight,
+    buttonBackground: tintColorLight,
+    buttonBackgroundPressed: "#2196F3",
+    buttonBackgroundDisabled: "#dfdfdf",
+    buttonText: "white",
+    buttonTextDisabled: "#a1a1a1",
+    outlinedButtonBackground: "white",
+    outlinedButtonBackgroundPressed: "#dfdfdf",
+    outlinedButtonText: tintColorLight,
+    outlinedButtonBorder: disabledColorLight,
   },
   dark: {
     text: '#ECEDEE',
     background: '#151718',
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: disabledColorDark,
+    tabIconDefault: disabledColorDark,
     tabIconSelected: tintColorDark,
+    disabledText: disabledColorDark,
+    buttonBackground: "#40c0ff",
+    buttonBackgroundPressed: "#2196F3",
+    buttonBackgroundDisabled: "#404040",
+    buttonText: tintColorLight,
+    buttonTextDisabled: disabledColorDark,
+    outlinedButtonBackground: "#151718",
+    outlinedButtonBackgroundPressed: disabledColorDark,
+    outlinedButtonText: tintColorLight,
+    outlinedButtonBorder: tintColorDark,
   },
 };
