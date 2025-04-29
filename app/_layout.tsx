@@ -11,6 +11,8 @@ import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { SQLiteProvider } from "expo-sqlite";
+import { migrateDbIfNeeded } from "@/utils/database";
 import EventsProvider from "@/features/events/eventsContext";
 import BookingsProvider from "@/features/bookings/bookingsContext";
 import ErrorModal from "@/components/ErrorModal";
@@ -37,6 +39,10 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <SQLiteProvider
+        databaseName="simpleEventPlanner.db"
+        onInit={migrateDbIfNeeded}
+      >
         <AuthProvider>
           <EventsProvider>
             <BookingsProvider>
@@ -45,6 +51,7 @@ export default function RootLayout() {
             </BookingsProvider>
           </EventsProvider>
         </AuthProvider>
+      </SQLiteProvider>
       <StatusBar style="auto" />
     </ThemeProvider>
   );

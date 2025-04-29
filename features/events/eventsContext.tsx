@@ -17,6 +17,8 @@ import eventsReducer, {
   eventsLoading,
 } from "./eventsSlice";
 import { SnakifyKeys, UpcomingEvent } from "@/utils/types";
+import { useSQLiteContext } from "expo-sqlite";
+import { toSqlNamedParams } from "@/utils/database";
 import { snakeToCamelKeys, toSnakeCase } from "@/utils/utils";
 import { useSession } from "@/hooks/useSession";
 
@@ -43,8 +45,45 @@ export const EventsContext = createContext<EventsContextType>({
 export default function EventsProvider({ children }: PropsWithChildren) {
   const [state, dispatch] = useReducer(eventsReducer, initialState);
 
+  const db = useSQLiteContext();
+
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
+
+  useEffect(() => {
+    async function fetchEvents() {
+      try {
+        dispatch(eventsLoading());
+        const results = await db.getAllAsync<SnakifyKeys<DbEvent>>(
+          "SELECT * FROM events"
+        );
+        if (!ignore) {
+          dispatch(
+            listEvents(
+              results.map((e) => {
+                const { id, dateTime, ...rest } = snakeToCamelKeys(e);
+                return {
+                  dateTime: new Date(dateTime),
+                  ...rest,
+                  id: String(id),
+                };
+              })
+            )
+          );
+          dispatch(eventsSuccess());
+        }
+      } catch (error) {
+        dispatch(eventsError(`${error}`));
+        console.error("Events (GET) error:", error);
+      }
+    }
+
+    let ignore = false;
+    fetchEvents();
+    return () => {
+      ignore = true;
+    };
+  }, [db]);
 
   const createEvent = useCallback(
     async (event: EventData) => {
@@ -67,7 +106,15 @@ export default function EventsProvider({ children }: PropsWithChildren) {
           if (dateTime < new Date()) {
             throw new Error("The event date cannot be in the past");
           }
-          dispatch(addEvent({ ...event, id: String(state.events.length) }));
+          const result = await db.runAsync(
+            "INSERT INTO events (title, description, date_time, location, capacity, category, image_url) VALUES ($title, $description, $dateTime, $location, $capacity, $category, $imageUrl)",
+            {
+              ...toSqlNamedParams(event, {
+                dateTime: (value) => (value as Date).toISOString(),
+              }),
+            }
+          );
+          dispatch(addEvent({ ...event, id: String(result.lastInsertRowId) }));
           dispatch(eventsSuccess());
         } else {
           throw new Error("Not authorized");
@@ -78,7 +125,7 @@ export default function EventsProvider({ children }: PropsWithChildren) {
         throw error;
       }
     },
-    [isAdmin]
+    [db, isAdmin]
   );
   const editEvent = useCallback(
     async (id: string, event: Partial<EventData>) => {
@@ -101,9 +148,28 @@ export default function EventsProvider({ children }: PropsWithChildren) {
           const bindings = Object.keys(event).map(
             (key) => `${toSnakeCase(key)} = $${key}`
           );
+          const result = await db.runAsync(
+            `UPDATE events SET ${bindings.join(", ")} WHERE id = $id`,
+            {
+              $id: parseInt(id),
+              ...toSqlNamedParams(event, {
+                dateTime: (value) => (value as Date).toISOString(),
+              }),
+            }
+          );
+          console.log(bindings.join(", "));
+          console.log({
+            $id: parseInt(id),
+            ...toSqlNamedParams(event, {
+              dateTime: (value) => (value as Date).toISOString(),
+            }),
+          });
+          console.log(result);
 
-          dispatch(updateEvent({ ...event, id }));
-          dispatch(eventsSuccess());
+          if (result.changes) {
+            dispatch(updateEvent({ ...event, id }));
+            dispatch(eventsSuccess());
+          }
         } else {
           throw new Error("Not authorized");
         }
@@ -113,15 +179,21 @@ export default function EventsProvider({ children }: PropsWithChildren) {
         throw error;
       }
     },
-    [isAdmin]
+    [db, isAdmin]
   );
   const deleteEvent = useCallback(
     async (id: string) => {
       try {
         if (isAdmin) {
           dispatch(eventsLoading());
+          const result = await db.runAsync(
+            "DELETE FROM events WHERE id = $id",
+            { $id: parseInt(id) }
+          );
+          if (result.changes) {
             dispatch(removeEvent(id));
             dispatch(eventsSuccess());
+          }
         } else {
           throw new Error("Not authorized");
         }
@@ -130,7 +202,7 @@ export default function EventsProvider({ children }: PropsWithChildren) {
         console.error("Events (DELETE) error:", error);
       }
     },
-    [isAdmin]
+    [db, isAdmin]
   );
   const reset = useCallback(() => {
     dispatch(eventsSuccess());

@@ -6,6 +6,7 @@ import {
   useReducer,
   type PropsWithChildren,
 } from "react";
+import { useSQLiteContext } from "expo-sqlite";
 import { User } from "@/utils/types";
 import { validateEmail } from "@/utils/utils";
 import authReducer, {
@@ -51,6 +52,7 @@ export const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: PropsWithChildren) {
   // const [[isLoading, session], setSession] = useStorageState("session")
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const db = useSQLiteContext();
 
   const setSession = async (user: User) => {
     console.log("before setUser");
@@ -81,13 +83,33 @@ export function AuthProvider({ children }: PropsWithChildren) {
         console.error("Auth (SESSION) error:", error);
       }
     }
+    async function fetchUsers() {
+      try {
+        if (user?.role === "admin") {
+          dispatch(authLoading());
+          const results = await db.getAllAsync<
+            Omit<User, "id"> & { id: number }
+          >("SELECT * FROM users");
+          if (!ignore) {
+            dispatch(
+              listUsers(results.map((u) => ({ ...u, id: String(u.id) })))
+            );
+            dispatch(authSuccess());
+          }
+        }
+      } catch (error) {
+        dispatch(authError(`${error}`));
+        console.error("User (GET) error:", error);
+      }
+    }
 
     let ignore = false;
     fetchSession();
+    fetchUsers();
     return () => {
       ignore = true;
     };
-  }, [user]);
+  }, [db, user]);
 
   const signIn = useCallback(
     async ({
@@ -104,9 +126,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (!validateEmail($email)) {
           throw new Error("The email address is badly formatted.");
         }
-        const result = state.users?.find(
-          (user) => user.email === $email
-        );
+        const result = await db.getFirstAsync<
+          Omit<User, "id"> & { id: number }
+        >("SELECT * FROM users WHERE email = $email AND password = $password", {
+          $email,
+          $password,
+        });
         if (result) {
           console.log(result);
           const user: User = { ...result, id: String(result.id) };
@@ -121,7 +146,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         console.error("Auth (SIGN-IN) error:", error);
       }
     },
-    []
+    [db]
   );
   const signUp = useCallback(
     async ({
@@ -144,8 +169,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (password.length < 6) {
           throw new Error("The password must be 6 characters long or more.");
         }
+        const result = await db.runAsync(
+          "INSERT INTO users (name, email, password, role) VALUES ($name, $email, $password, 'client')",
+          { $name: name, $email: email, $password: password }
+        );
         const user: User = {
-          id: String(state.users?.length) ,
+          id: String(result.lastInsertRowId),
           name,
           email,
           role: "client",
@@ -156,7 +185,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         console.error("Auth (SIGNUP) error:", error);
       }
     },
-    []
+    [db]
   );
   const signOut = useCallback(async () => {
     await deleteItemAsync(SESSION_KEY);

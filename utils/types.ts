@@ -1,3 +1,4 @@
+import { type SQLiteBindValue } from "expo-sqlite";
 
 export const eventCategories = [
     "conference",
@@ -36,6 +37,13 @@ export interface Booking {
     userId: string;
     dateTime: Date;
 }
+
+export type SQLiteBindNamedParams<T> = {
+    [K in keyof T as `$${string & K}`]: T[K] extends SQLiteBindValue
+    ? T[K]
+    : Exclude<T[K], undefined> extends SQLiteBindValue ?
+    Exclude<T[K], undefined> | null : SQLiteBindValue;
+};
 
 
 export type SnakeToCamel<S extends string> = S extends `${infer T}_${infer U}`
